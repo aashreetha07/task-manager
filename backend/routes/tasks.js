@@ -53,4 +53,15 @@ router.delete('/:id', protect, async (req, res) => {
   }
 });
 
+// PUT — update task title
+router.put('/:id', async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id)
+    task.title = req.body.title  // update the title with new value
+    const updatedTask = await task.save()
+    res.json(updatedTask)
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
+})
 module.exports = router;

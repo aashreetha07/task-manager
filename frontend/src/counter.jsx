@@ -1,94 +1,11 @@
-/*export function setupCounter(element) {
-  let counter = 0
-  const setCounter = (count) => {
-    counter = count
-    element.innerHTML = `Count is ${counter}`
-  }
-  element.addEventListener('click', () => setCounter(counter + 1))
-  setCounter(0)
-}*/
-/*import { useState, useEffect } from 'react'
-import './style.css'
-
-function App() {
-  // STATE — variables that React watches for changes
-  const [tasks, setTasks] = useState([])       // stores all tasks
-  const [title, setTitle] = useState('')        // stores input value
-
-  // FETCH all tasks from backend when page loads
-  useEffect(() => {
-    fetchTasks()
-  }, [])
-
-  const fetchTasks = async () => {
-    const res = await fetch('http://localhost:5000/api/tasks')
-    const data = await res.json()
-    setTasks(data)
-  }
-
-  // ADD a new task
-  const addTask = async () => {
-    if (!title) return // don't add empty tasks
-    await fetch('http://localhost:5000/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title })
-    })
-    setTitle('')      // clear input
-    fetchTasks()      // refresh list
-  }
-
-  // TOGGLE task complete/incomplete
-  const toggleTask = async (id) => {
-    await fetch(`http://localhost:5000/api/tasks/${id}`, {
-      method: 'PATCH'
-    })
-    fetchTasks()
-  }
-
-  // DELETE a task
-  const deleteTask = async (id) => {
-    await fetch(`http://localhost:5000/api/tasks/${id}`, {
-      method: 'DELETE'
-    })
-    fetchTasks()
-  }
-
-  return (
-    <div className="container">
-      <h1>📝 Task Manager</h1>
-
-      //{/* INPUT to add new task 
-      <div className="input-row">
-        <input
-          type="text"
-          placeholder="Enter a task..."
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addTask()}
-        />
-        <button onClick={addTask}>Add</button>
-      </div>
-
-      {/* TASK LIST 
-      <ul>
-        {tasks.map(task => (
-          <li key={task._id} className={task.completed ? 'completed' : ''}>
-            <span onClick={() => toggleTask(task._id)}>{task.title}</span>
-            <button onClick={() => deleteTask(task._id)}>❌</button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-export default App  */
+const API = 'https://task-manager-backend-b7ou.onrender.com'
 import { useState, useEffect } from 'react'
 
 function App() {
   const [tasks, setTasks] = useState([])
   const [title, setTitle] = useState('')
+  const [editingId, setEditingId] = useState(null)   // which task is being edited
+  const [editingTitle, setEditingTitle] = useState('') // the new title value
   const [token, setToken] = useState(localStorage.getItem('token') || '')
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')) || null)
 
@@ -107,8 +24,8 @@ function App() {
   const handleAuth = async () => {
     setError('')
     const url = isLogin
-      ? 'http://localhost:5000/api/auth/login'
-      : 'http://localhost:5000/api/auth/register'
+      ? `${API}/api/auth/login`
+      : `${API}/api/auth/register`
 
     const body = isLogin
       ? { email, password }
@@ -150,7 +67,7 @@ function App() {
 
   // ─── TASKS ──────────────────────────────────────────
   const fetchTasks = async () => {
-    const res = await fetch('http://localhost:5000/api/tasks', {
+    const res = await fetch(`${API}/api/tasks`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     const data = await res.json()
@@ -159,7 +76,7 @@ function App() {
 
   const addTask = async () => {
     if (!title.trim()) return
-    await fetch('http://localhost:5000/api/tasks', {
+    await fetch(`${API}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -172,7 +89,7 @@ function App() {
   }
 
   const toggleTask = async (id) => {
-    await fetch(`http://localhost:5000/api/tasks/${id}`, {
+    await fetch(`${API}/api/tasks/${id}`, {
       method: 'PATCH',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -180,11 +97,36 @@ function App() {
   }
 
   const deleteTask = async (id) => {
-    await fetch(`http://localhost:5000/api/tasks/${id}`, {
+    await fetch(`${API}/api/tasks/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     })
     fetchTasks()
+  }
+
+   // START editing a task
+  const startEdit = (task) => {
+    setEditingId(task._id)        // mark which task is being edited
+    setEditingTitle(task.title)   // prefill input with current title
+  }
+
+  // SAVE the updated task
+  const saveEdit = async (id) => {
+    if (!editingTitle.trim()) return
+    await fetch(`${API}/api/tasks/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: editingTitle })
+    })
+    setEditingId(null)    // exit edit mode
+    setEditingTitle('')
+    fetchTasks()
+  }
+
+   // CANCEL editing
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditingTitle('')
   }
 
   const completedCount = tasks.filter(t => t.completed).length
@@ -281,8 +223,28 @@ function App() {
               >
                 {task.completed && '✓'}
               </div>
+              {editingId === task._id ? (
+                <>
+                  <input
+                    className="edit-input"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveEdit(task._id)
+                      if (e.key === 'Escape') cancelEdit()
+                    }}
+                    autoFocus
+                  />
+                  <button className="save-btn" onClick={() => saveEdit(task._id)}>save</button>
+                  <button className="cancel-btn" onClick={cancelEdit}>✖</button>
+                </>
+              ) : (
+                <>
               <span className="task-title">{task.title}</span>
+              <button className="edit-btn" onClick={() => startEdit(task)}>✏️</button>
               <button className="delete-btn" onClick={() => deleteTask(task._id)}>❌</button>
+                </>
+              )}
             </li>
           ))}
         </ul>
@@ -290,5 +252,4 @@ function App() {
     </div>
   )
 }
-
 export default App
